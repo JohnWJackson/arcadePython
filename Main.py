@@ -1,13 +1,17 @@
 import arcade
-import random
+from random import randint, randrange
+from math import ceil
+import time
+
 
 SCREEN_WIDTH = 600
 SCREEN_HEIGHT = 800
 
-VIEWPORT_MARGIN = 10
-TOP_MARGIN = 40
-
 TEXT_WIDTH = 20
+
+# Spacing
+VIEWPORT_MARGIN = 10
+PIXEL_SPACING = 40
 
 # Scaling percentages
 SPRITE_SCALING_PLAYER = .5
@@ -17,7 +21,9 @@ SPRITE_SCALING_BULLET = .4
 # Screen states
 WELCOME = 0
 GAME_RUNNING = 1
-GAME_OVER = 2
+NEXT_LEVEL = 2
+GAME_OVER = 3
+PAUSE = 4
 
 # Ship speeds
 MOVEMENT_SPEED = 5
@@ -28,10 +34,6 @@ ENEMY_BULLET_SPEED = 7
 
 # Starting player lives
 PLAYER_LIVES = 3
-
-# Levels and level scaling
-CURRENT_LEVEL = 5
-ENEMY_COUNT = CURRENT_LEVEL * 2
 
 
 class PlayerBullet(arcade.Sprite):
@@ -59,10 +61,6 @@ class Enemy(arcade.Sprite):
 
         self.change_x = 0
 
-    # def reset_pos(self):
-    #     self.center_y = random.randrange((SCREEN_HEIGHT / 2) + TOP_MARGIN, SCREEN_HEIGHT - VIEWPORT_MARGIN)
-    #     self.center_x = SCREEN_WIDTH + 40
-
     def update(self):
         # Enemy movement
         self.center_x += self.change_x
@@ -84,18 +82,20 @@ class MyApplication(arcade.Window):
         # Hide the mouse
         self.set_mouse_visible(False)
 
-        # Keep track of frames
-        self.total_frames = 0
-
-        # Starting game state - WELCOME
+        # Game states
         self.current_state = WELCOME
 
-        # Game pause
+        # Pause game
         self.paused = False
+
+        # Get start time
+        self.start = time.time()
 
         # Load textures
         self.welcome_texture = arcade.load_texture("images/welcome.png")
         self.gameover_texture = arcade.load_texture("images/gameover.png")
+        self.paused_texture = arcade.load_texture("images/paused.png")
+        self.nextlevel_texture = arcade.load_texture("images/nextlevel.png")
 
         # Sprite lists
         self.player_list = None
@@ -106,9 +106,14 @@ class MyApplication(arcade.Window):
         # Set up the player
         self.player_sprite = None
         self.score = 0
+        self.enemies_killed = 0
         self.lives = PLAYER_LIVES
 
-        # Simple physics engine
+        # Levels and scaling
+        self.current_level = 1
+        self.enemy_count = 1
+
+        # Physics engine
         self.physics_engine = None
 
         # Load sounds
@@ -117,6 +122,9 @@ class MyApplication(arcade.Window):
         self.enemy_explosion_sound = arcade.sound.load_sound("sounds/explosion01.wav")
         self.player_explosion_sound = arcade.sound.load_sound("sounds/explosion02.wav")
 
+        # Start welcome music
+        arcade.play_sound(self.welcome_music)
+
     def setup(self):
         """
         Main
@@ -124,35 +132,29 @@ class MyApplication(arcade.Window):
         # Set the background color
         arcade.set_background_color(arcade.color.BLACK)
 
-        # Start welcome music
-        arcade.play_sound(self.welcome_music)
-
         # Sprite lists
         self.player_list = arcade.SpriteList()
         self.enemy_list = arcade.SpriteList()
         self.player_bullet_list = arcade.SpriteList()
         self.enemy_bullet_list = arcade.SpriteList()
 
-        # Set up the player
-        self.score = 0
-
+        # Set up the player sprite
         self.player_sprite = arcade.Sprite("images/ship01.png", SPRITE_SCALING_PLAYER)
         self.player_sprite.center_x = SCREEN_WIDTH / 2
-        self.player_sprite.center_y = SCREEN_HEIGHT - (SCREEN_HEIGHT - 60)
+        self.player_sprite.center_y = SCREEN_HEIGHT - (SCREEN_HEIGHT - PIXEL_SPACING)
         self.player_list.append(self.player_sprite)
 
-        # Set up the enemies
-        x = TOP_MARGIN
+        # Set up the enemy sprites numbers and locations
         enemy_locations = []
-        for i in range(ENEMY_COUNT):
-            enemy_locations.append([SCREEN_WIDTH / 2, SCREEN_HEIGHT - x])
-            x += TOP_MARGIN
+        for i in range(self.enemy_count):
+            enemy_locations.append([randint(PIXEL_SPACING, SCREEN_WIDTH - PIXEL_SPACING),
+                                    randint((SCREEN_HEIGHT // 3) + PIXEL_SPACING, SCREEN_HEIGHT - PIXEL_SPACING)])
 
         for enemy in enemy_locations:
             enemy_sprite = Enemy("images/enemy_ship01.png", SPRITE_SCALING_ENEMY)
             enemy_sprite.center_x = enemy[0]
             enemy_sprite.center_y = enemy[1]
-            enemy_sprite.change_x = random.randrange(-7, 7, 2)
+            enemy_sprite.change_x = randrange(-9, 9, 2)
             self.enemy_list.append(enemy_sprite)
 
         # Set up simple physics engine
@@ -173,6 +175,28 @@ class MyApplication(arcade.Window):
                                       self.gameover_texture.width,
                                       self.gameover_texture.height,
                                       self.gameover_texture)
+
+    def draw_paused_page(self):
+        # Load image on paused page
+        arcade.draw_texture_rectangle(SCREEN_WIDTH // 2,
+                                      SCREEN_HEIGHT // 2,
+                                      self.paused_texture.width,
+                                      self.paused_texture.height,
+                                      self.paused_texture)
+
+    def draw_nextlevel_page(self):
+        # Load image on next level page
+        arcade.draw_texture_rectangle(SCREEN_WIDTH // 2,
+                                      SCREEN_HEIGHT // 2,
+                                      self.nextlevel_texture.width,
+                                      self.nextlevel_texture.height,
+                                      self.nextlevel_texture)
+
+        arcade.draw_text(f"Level - {self.current_level}",
+                         SCREEN_WIDTH - 390,
+                         SCREEN_HEIGHT - 150,
+                         arcade.color.ANDROID_GREEN,
+                         40)
 
     def draw_game(self):
         # Draw all sprites
@@ -212,6 +236,10 @@ class MyApplication(arcade.Window):
             self.draw_welcome_page()
         elif self.current_state == GAME_RUNNING:
             self.draw_game()
+        elif self.current_state == NEXT_LEVEL:
+            self.draw_nextlevel_page()
+        elif self.current_state == PAUSE:
+            self.draw_paused_page()
         elif self.current_state == GAME_OVER:
             self.draw_gameover_page()
 
@@ -219,13 +247,8 @@ class MyApplication(arcade.Window):
         """
         All the logic to move, and the game logic goes here.
         """
-        global CURRENT_LEVEL
-
         # Only happens if the game is running
-        if self.current_state == GAME_RUNNING:
-
-            # Count the frames to a max of 60
-            self.total_frames = (self.total_frames + 1) % 60
+        if self.current_state == GAME_RUNNING and not self.paused:
 
             # Updates
             self.physics_engine.update()
@@ -236,7 +259,7 @@ class MyApplication(arcade.Window):
 
             # Player boundary checks
             if self.player_sprite.left < VIEWPORT_MARGIN:
-                self.player_sprite.boundary_left = VIEWPORT_MARGIN
+                self.player_sprite.left = VIEWPORT_MARGIN
             if self.player_sprite.right > SCREEN_WIDTH - VIEWPORT_MARGIN:
                 self.player_sprite.right = SCREEN_WIDTH - VIEWPORT_MARGIN
             if self.player_sprite.top > SCREEN_HEIGHT / 3:
@@ -253,30 +276,22 @@ class MyApplication(arcade.Window):
                 # Bullet disappears if hits something
                 if len(hit_list) > 0:
                     bullet.kill()
-                # Enemies disappear when kiled
+                # Enemies disappear when killed
                 for enemy in hit_list:
                     enemy.kill()
+                    self.enemies_killed += 1
                     # Plus 100 to score
                     self.score += 100
                     # Play sound
                     arcade.play_sound(self.enemy_explosion_sound)
 
-            # Half enemies shoot bullets every 60 frames, other half every 30 frames
-            enemy_count = 1
+            # Enemies shoot randomly ( 2% chance each frame to shoot )
             for enemy in self.enemy_list:
-                enemy_count += 1
-                if enemy_count % 2 == 0:
-                    if self.total_frames % 60 == 0:
-                        enemy_bullet = EnemyBullet("images/bullet_01.png", SPRITE_SCALING_BULLET)
-                        enemy_bullet.center_x = enemy.center_x
-                        enemy_bullet.top = enemy.bottom
-                        self.enemy_bullet_list.append(enemy_bullet)
-                else:
-                    if self.total_frames == 30:
-                        enemy_bullet = EnemyBullet("images/bullet_01.png", SPRITE_SCALING_BULLET)
-                        enemy_bullet.center_x = enemy.center_x
-                        enemy_bullet.top = enemy.bottom
-                        self.enemy_bullet_list.append(enemy_bullet)
+                if randint(0, 50) == 0 and self.reload_timer():
+                    enemy_bullet = EnemyBullet("images/bullet_01.png", SPRITE_SCALING_BULLET)
+                    enemy_bullet.center_x = enemy.center_x
+                    enemy_bullet.top = enemy.bottom
+                    self.enemy_bullet_list.append(enemy_bullet)
 
             # Enemy bullet collisions
             for enemy_bullet in self.enemy_bullet_list:
@@ -290,22 +305,26 @@ class MyApplication(arcade.Window):
                 elif enemy_bullet.top < 0:
                     enemy_bullet.kill()
 
+        # Start next level when all enemies are killed
+        if self.enemies_killed == self.enemy_count:
+            self.current_state = NEXT_LEVEL
+            self.current_level += 1
+            self.enemies_killed = 0
+            self.enemy_count = ceil(self.enemy_count * 1.3)
+            self.enemy_list = None
+            self.setup()
+
     def on_key_press(self, key, key_modifiers):
         """
         Called whenever arrow keys are pressed
         """
-        if self.current_state == GAME_RUNNING:
+        if self.current_state == GAME_RUNNING and not self.paused:
+            # P to pause
+            if key == arcade.key.P:
+                self.current_state = PAUSE
+                self.paused = True
 
-            # pause_count = 0
-            # if key == arcade.key.P:
-            #     pause_count += 1
-            #     if pause_count == 1:
-            #         self.paused = True
-            #     elif pause_count == 2:
-            #         self.paused = False
-            # while self.paused:
-            #     arcade.pause(1)
-
+            # Directional keys to move
             if key == arcade.key.UP:
                 self.player_sprite.change_y = MOVEMENT_SPEED
             if key == arcade.key.DOWN:
@@ -315,9 +334,16 @@ class MyApplication(arcade.Window):
             if key == arcade.key.LEFT:
                 self.player_sprite.change_x = -MOVEMENT_SPEED
 
-        elif self.current_state == GAME_OVER:
-            if key == arcade.key.ESCAPE:
-                quit()
+        # Un-pause
+        elif key == arcade.key.P and self.paused:
+                self.current_state = GAME_RUNNING
+                self.paused = False
+
+        elif key == arcade.key.ENTER and self.current_state == NEXT_LEVEL:
+            self.current_state = GAME_RUNNING
+
+        elif key == arcade.key.ESCAPE:
+            quit()
 
     def on_key_release(self, key, key_modifiers):
         """
@@ -328,39 +354,40 @@ class MyApplication(arcade.Window):
         if key == arcade.key.UP or key == arcade.key.DOWN:
             self.player_sprite.change_y = 0
 
-    def on_mouse_motion(self, x, y, delta_x, delta_y):
-        """
-        Called whenever the mouse moves.
-        """
-        pass
-
     def on_mouse_press(self, x, y, button, key_modifiers):
         """
         Called when the user presses a mouse button.
         """
+        # Shoot player bullets on mouse press. Half second reload timer
 
-        if self.current_state == GAME_RUNNING:
+        if self.current_state == GAME_RUNNING and self.reload_timer():
             # Player bullets
             player_bullet = PlayerBullet("images/bullet_01.png", SPRITE_SCALING_BULLET)
             player_bullet.center_x = self.player_sprite.center_x
             player_bullet.bottom = self.player_sprite.top
             self.player_bullet_list.append(player_bullet)
-
+            self.start = time.time()
             # Play sound
             arcade.sound.play_sound(self.gun_sound)
 
         elif self.current_state == WELCOME:
             self.current_state = GAME_RUNNING
 
+        elif self.paused:
+            self.current_state = GAME_RUNNING
+            self.paused = False
+
         elif self.current_state == GAME_OVER:
             self.lives = PLAYER_LIVES
+            self.enemy_count = 1
+            self.enemies_killed = 0
+            self.current_level = 1
+            self.score = 0
             self.current_state = GAME_RUNNING
+            self.setup()
 
-    def on_mouse_release(self, x, y, button, key_modifiers):
-        """
-        Called when a user releases a mouse button.
-        """
-        pass
+    def reload_timer(self):
+            return (time.time() - self.start) > .1
 
 
 def main():

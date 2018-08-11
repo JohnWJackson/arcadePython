@@ -78,8 +78,8 @@
     <packageJsonPaths />
   </component>
   <component name="ProjectFrameBounds">
-    <option name="x" value="109" />
-    <option name="width" value="974" />
+    <option name="x" value="490" />
+    <option name="width" value="1432" />
     <option name="height" value="1087" />
   </component>
   <component name="ProjectView">
@@ -119,7 +119,7 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/Main.py.py" />
+      <option name="SCRIPT_NAME" value="C:\Users\John\PycharmProjects\arcadePython\Main.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
