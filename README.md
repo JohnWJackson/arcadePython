@@ -1,4 +1,5 @@
 # arcadePython
 
-A small Space Invaders clone game
+A Space Invaders clone.
+
 Fun first-time Python project
